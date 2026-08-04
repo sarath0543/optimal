@@ -1,0 +1,214 @@
+function doGet(e) {
+  var action = e?.parameter?.action;
+  
+  if (action === "checkStatus") return handleCheckStatus(e);
+  
+  if (action === "getSchedule") {
+    var scheduleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Schedule");
+    return buildJsonResponse({
+      status: "success",
+      schedule: scheduleSheet ? sheetToObjects(scheduleSheet) : []
+    });
+  }
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return buildJsonResponse({
+    status: "success",
+    users: sheetToObjects(ss.getSheetByName("Users")),
+    subjects: sheetToObjects(ss.getSheetByName("Subjects")),
+    schedule: sheetToObjects(ss.getSheetByName("Schedule"))
+  });
+}
+
+function handleCheckStatus(e) {
+  var subjectCode = e.parameter.subjectCode;
+  var period = e.parameter.period;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(subjectCode);
+  
+  if (!sheet) return buildJsonResponse({ isSubmitted: false });
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return buildJsonResponse({ isSubmitted: false });
+
+  var headers = data[0];
+  var periodColIndex = -1;
+  var shortPeriod = String(period).replace("Hour", "Hr").trim();
+  
+  for (var c = 0; c < headers.length; c++) {
+    var headerStr = String(headers[c]);
+    if (headerStr.includes(period) || headerStr.includes(shortPeriod)) {
+      periodColIndex = c;
+      break;
+    }
+  }
+
+  if (periodColIndex === -1) return buildJsonResponse({ isSubmitted: false });
+
+  var presentRolls = [];
+  var totalStudents = 0;
+  var hasSubmission = false;
+
+  for (var i = 1; i < data.length; i++) {
+    var rollNo = String(data[i][0]).trim();
+    var statusVal = String(data[i][periodColIndex]).trim();
+    if (rollNo !== "") {
+      totalStudents++;
+      if (statusVal !== "") {
+        hasSubmission = true;
+        if (statusVal.toLowerCase() === "present") presentRolls.push(rollNo);
+      }
+    }
+  }
+
+  return buildJsonResponse({
+    isSubmitted: hasSubmission,
+    record: { presentRolls: presentRolls, totalStudents: totalStudents }
+  });
+}
+
+function doPost(e) {
+  try {
+    var rawContents = e.parameter?.postData || e.postData?.contents || JSON.stringify(e.parameter || {});
+    var data = rawContents ? JSON.parse(rawContents) : {};
+    var action = data.action;
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (action === "saveAttendance") {
+      var subjectCode = String(data.subjectCode || "").trim();
+      if (!subjectCode) return buildJsonResponse({ status: "error", message: "Subject code missing." });
+
+      var subjSheet = ss.getSheetByName(subjectCode) || ss.insertSheet(subjectCode);
+
+      if (subjSheet.getLastRow() === 0) {
+        var subjectsSheet = ss.getSheetByName("Subjects");
+        var rollNumbers = [];
+        if (subjectsSheet) {
+          var subData = subjectsSheet.getDataRange().getValues();
+          var headers = subData[0];
+          var codeCol = headers.indexOf("SubjectCode");
+          var rollsCol = headers.indexOf("RollList");
+
+          for (var i = 1; i < subData.length; i++) {
+            if (String(subData[i][codeCol]).trim().toLowerCase() === subjectCode.toLowerCase()) {
+              rollNumbers = String(subData[i][rollsCol] || "").split(",").map(r => r.trim()).filter(Boolean);
+              break;
+            }
+          }
+        }
+        subjSheet.getRange(1, 1).setValue("Roll Number");
+        if (rollNumbers.length > 0) {
+          subjSheet.getRange(2, 1, rollNumbers.length, 1).setValues(rollNumbers.map(r => [r]));
+        }
+      }
+
+      var sheetData = subjSheet.getDataRange().getValues();
+      var existingRolls = [];
+      for (var r = 1; r < sheetData.length; r++) existingRolls.push(String(sheetData[r][0]).trim());
+
+      var todayStr = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), "dd-MM");
+      var periodStr = String(data.period || "").trim().replace("Hour", "Hr");
+      var columnHeader = todayStr + " (" + periodStr + ")";
+
+      var lastCol = subjSheet.getLastColumn();
+      var headersList = lastCol > 0 ? subjSheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+      var targetCol = headersList.indexOf(columnHeader) + 1;
+
+      if (targetCol === 0) {
+        targetCol = lastCol + 1;
+        subjSheet.getRange(1, targetCol).setValue(columnHeader);
+      }
+
+      var records = data.records || [];
+      var statusMap = {};
+      var presentRolls = [];
+
+      records.forEach(rec => {
+        var roll = String(rec.rollNo || "").trim();
+        var isPresent = (rec.status === "Present" || rec.status === "1" || rec.status === true);
+        if (isPresent) {
+          statusMap[roll] = "Present";
+          presentRolls.push(roll);
+        } else {
+          statusMap[roll] = "0";
+        }
+      });
+
+      var columnValues = existingRolls.map(rollNo => [statusMap[rollNo] || "0"]);
+      if (columnValues.length > 0) subjSheet.getRange(2, targetCol, columnValues.length, 1).setValues(columnValues);
+
+      SpreadsheetApp.flush();
+
+      var waMessage = "*" + subjectCode + " < " + periodStr + " >*\n\n" +
+                      "*Total Present:* " + presentRolls.length + "/" + existingRolls.length + "\n" +
+                      "*Present Roll Numbers:* " + (presentRolls.length > 0 ? presentRolls.join(", ") : "None");
+
+      return buildJsonResponse({
+        status: "success",
+        whatsappUrl: "https://api.whatsapp.com/send?text=" + encodeURIComponent(waMessage)
+      });
+    }
+
+    if (action === "updateSchedule") {
+      var schedSheet = ss.getSheetByName("Schedule");
+      if (!schedSheet) return buildJsonResponse({ status: "error", message: "Schedule sheet missing." });
+
+      var lastRow = schedSheet.getLastRow();
+      if (lastRow > 1) schedSheet.getRange(2, 1, lastRow - 1, 5).clearContent();
+      if (schedSheet.getLastRow() === 0) schedSheet.appendRow(["SubjectCode", "Day", "Period", "StartTime", "EndTime"]);
+
+      if (Array.isArray(data.schedule) && data.schedule.length > 0) {
+        var newRows = data.schedule.map(item => [
+          String(item.SubjectCode || "").trim(),
+          String(item.Day || "").trim(),
+          String(item.Period || "").trim(),
+          String(item.StartTime || "").trim(),
+          String(item.EndTime || "").trim()
+        ]);
+        schedSheet.getRange(2, 1, newRows.length, 5).setValues(newRows);
+      }
+
+      SpreadsheetApp.flush();
+      return buildJsonResponse({ status: "success", message: "Schedule updated." });
+    }
+
+    if (action === "updatePIN") {
+      var usersSheet = ss.getSheetByName("Users");
+      if (!usersSheet) return buildJsonResponse({ status: "error", message: "Users sheet missing." });
+
+      var userData = usersSheet.getDataRange().getValues();
+      var headers = userData[0];
+      var subjCol = headers.indexOf("AssignedSubject");
+      var pinCol = headers.indexOf("PIN");
+
+      for (var r = 1; r < userData.length; r++) {
+        if (String(userData[r][subjCol]).trim().toLowerCase() === String(data.subjectCode).trim().toLowerCase()) {
+          usersSheet.getRange(r + 1, pinCol + 1).setValue(data.newPIN);
+          SpreadsheetApp.flush();
+          return buildJsonResponse({ status: "success", message: "PIN updated." });
+        }
+      }
+      return buildJsonResponse({ status: "error", message: "Subject target not found." });
+    }
+
+    return buildJsonResponse({ status: "error", message: "Invalid action." });
+
+  } catch (err) {
+    return buildJsonResponse({ status: "error", message: err.toString() });
+  }
+}
+
+function sheetToObjects(sheet) {
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var headers = data[0];
+  return data.slice(1).map(row => {
+    var obj = {};
+    headers.forEach((h, idx) => obj[h] = row[idx]);
+    return obj;
+  });
+}
+
+function buildJsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}

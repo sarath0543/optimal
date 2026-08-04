@@ -1,0 +1,65 @@
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.max-w-3xl {
+    max-width: 768px !important;
+}
+
+.extra-small {
+    font-size: 11px;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.hover-card {
+    will-change: transform;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.06) !important;
+}
+
+.period-btn {
+    padding: 6px 2px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+}
+
+.student-card {
+    background: #ffffff;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.student-card.is-present {
+    background: #10b981 !important;
+    color: #ffffff !important;
+}
+
+.pin-input-field {
+    font-size: 24px;
+    letter-spacing: 0.5em;
+    text-indent: 0.25em;
+    text-align: center;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+#auth-overlay {
+    background: rgba(248, 250, 252, 0.85);
+    backdrop-filter: blur(16px);
+}
+
+.glass-auth-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 20px;
+    max-width: 360px;
+    width: 90%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}

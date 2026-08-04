@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Academic Console</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body class="d-flex flex-column min-vh-100 bg-light">
+
+    <!-- 6-DIGIT LOCK SCREEN -->
+    <div id="auth-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center z-3">
+        <div class="glass-auth-card p-4 text-center">
+            <span class="fs-1 d-block mb-2">🎓</span>
+            <h4 class="fw-bold text-dark mb-1">Portal Login</h4>
+            <p class="text-muted small mb-4">Enter 6-digit access PIN</p>
+            
+            <input type="password" id="pin-input" class="pin-input-field w-100 py-2 mb-2" placeholder="••••••" maxlength="6" autocomplete="off">
+            <div id="pin-error" class="text-danger small mt-2 d-none fw-bold">Invalid PIN. Try again.</div>
+        </div>
+    </div>
+
+    <!-- CENTERED HEADER WITH LOGOUT -->
+    <header class="glass-header sticky-top py-3 shadow-sm mb-4 bg-white border-bottom">
+        <div class="container px-3 max-w-3xl position-relative text-center">
+            
+            <button id="logout-btn" type="button" onclick="logoutUser()" class="btn btn-outline-danger btn-sm position-absolute top-0 end-0 mt-1 me-2 fw-bold d-none">
+                🚪 Logout
+            </button>
+
+            <span id="role-badge" class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary-subtle px-3 py-1 mb-1" style="font-size: 11px;">
+                Authenticating...
+            </span>
+            <h1 id="dynamic-title" class="h4 fw-bold text-dark m-0">Academic Terminal</h1>
+            <div id="live-time" class="text-muted small mt-1">Syncing Clock...</div>
+
+            <div id="counters-container" class="d-flex justify-content-center gap-3 mt-3 d-none">
+                <div class="bg-white border px-3 py-1.5 rounded-3 text-center shadow-sm" style="min-width: 90px;">
+                    <span class="d-block text-uppercase fw-bold text-success" style="font-size: 9px;">Present</span>
+                    <span id="present-count" class="h5 fw-bold text-success m-0">0</span>
+                </div>
+                <div class="bg-white border px-3 py-1.5 rounded-3 text-center shadow-sm" style="min-width: 90px;">
+                    <span class="d-block text-uppercase fw-bold text-secondary" style="font-size: 9px;">Absent</span>
+                    <span id="absent-count" class="h5 fw-bold text-secondary m-0">0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main id="app-content" class="container px-3 max-w-3xl flex-grow-1 d-none pb-5">
+        
+        <!-- FACULTY VIEW -->
+        <div id="faculty-view" class="d-none">
+            <div id="state-active" class="d-none">
+                <div class="d-flex justify-content-end gap-2 mb-3">
+                    <button id="mark-all-btn" type="button" class="btn btn-outline-success btn-sm fw-bold">✓ Mark All Present</button>
+                    <button id="clear-all-btn" type="button" class="btn btn-outline-secondary btn-sm fw-bold">✕ Clear All</button>
+                </div>
+                <div id="attendance-grid" class="row row-cols-3 row-cols-sm-4 row-cols-md-6 g-2"></div>
+            </div>
+
+            <div id="state-submitted-lock" class="d-none text-center py-5">
+                <div class="card p-4 border-0 shadow-sm rounded-4 max-w-lg mx-auto border-start border-4 border-success">
+                    <div class="display-3 mb-2">✅🎉</div>
+                    <h4 class="fw-bold text-dark">Period Attendance Recorded!</h4>
+                    <p class="text-muted small mb-3">You have already submitted attendance for this period.</p>
+                    <div id="whatsapp-share-container" class="d-none">
+                        <a id="wa-share-btn" href="#" target="_blank" class="btn btn-success fw-bold shadow-sm rounded-3 px-4 py-2">
+                            📱 Share Summary on WhatsApp
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div id="state-sunday" class="d-none text-center py-5">
+                <div class="card p-4 border-0 shadow-sm rounded-4 max-w-lg mx-auto">
+                    <div class="display-3 mb-2">🏖️✨</div>
+                    <h4 class="fw-bold text-dark">It's Sunday!</h4>
+                    <p class="text-muted small m-0">No classes scheduled today.</p>
+                </div>
+            </div>
+
+            <div id="state-morning-closed" class="d-none text-center py-5">
+                <div class="card p-4 border-0 shadow-sm rounded-4 max-w-lg mx-auto">
+                    <div class="display-3 mb-2">🌅🎓</div>
+                    <h4 class="fw-bold text-dark">Classes Start at 09:30 AM</h4>
+                </div>
+            </div>
+
+            <div id="state-lunch" class="d-none text-center py-5">
+                <div class="card p-4 border-0 shadow-sm rounded-4 max-w-lg mx-auto">
+                    <div class="display-3 mb-2">🍔🍜</div>
+                    <h4 class="fw-bold text-warning-emphasis">Lunch Break Hour</h4>
+                </div>
+            </div>
+
+            <div id="state-evening-closed" class="d-none text-center py-5">
+                <div class="card p-4 border-0 shadow-sm rounded-4 max-w-lg mx-auto">
+                    <div class="display-3 mb-2">🌙✨</div>
+                    <h4 class="fw-bold text-dark">Today's Sessions Completed</h4>
+                </div>
+            </div>
+
+            <div id="state-no-class" class="d-none text-center py-5">
+                <div class="card p-4 border-0 shadow-sm rounded-4 max-w-lg mx-auto">
+                    <div class="display-3 mb-2">☕</div>
+                    <h4 class="fw-bold text-dark">No Active Class Scheduled</h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADMIN VIEW -->
+        <div id="admin-view" class="d-none">
+            <div id="admin-dashboard" class="card border-0 shadow-sm rounded-4 p-3 p-md-4">
+                <h5 class="fw-bold text-dark text-center mb-3">Assigned Subjects</h5>
+                <div id="subject-cards-container" class="row row-cols-1 row-cols-sm-2 g-3"></div>
+            </div>
+
+            <div id="admin-subject-console" class="d-none">
+                <div class="card p-3 p-md-4 border-0 shadow-sm rounded-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <button type="button" onclick="closeAdminConsole()" class="btn btn-outline-primary btn-sm fw-bold rounded-pill px-3">
+                            ← Back to Subjects
+                        </button>
+                        <button type="button" onclick="resetFacultyPIN()" class="btn btn-warning btn-sm fw-bold shadow-sm rounded-3">
+                            🔑 Reset PIN
+                        </button>
+                    </div>
+
+                    <div class="border-bottom pb-3 mb-3 text-center text-sm-start">
+                        <h4 id="console-subject-name" class="fw-bold text-dark m-0">Subject Console</h4>
+                        <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start gap-2 mt-1">
+                            <span id="console-subject-code" class="badge bg-light text-dark border">Code</span>
+                            <span id="console-subject-prof" class="text-primary small fw-bold">Professor</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h6 class="fw-bold m-0">Weekly Timetable Allocation</h6>
+                        </div>
+                        <button id="edit-schedule-btn" type="button" onclick="toggleScheduleEditMode()" class="btn btn-outline-secondary btn-sm fw-bold rounded-3">
+                            ✏️ Edit Timetable
+                        </button>
+                    </div>
+
+                    <div id="schedule-allocation-grid" class="d-flex flex-column gap-2"></div>
+
+                    <div id="save-schedule-container" class="mt-4 text-center d-none">
+                        <button type="button" onclick="saveScheduleChanges()" class="btn btn-success px-4 py-2 fw-bold rounded-3 shadow-sm w-100 w-sm-auto">
+                            Save Schedule Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER DOCK -->
+    <footer id="footer-dock" class="fixed-bottom py-3 px-3 bg-white border-top shadow-lg d-none">
+        <div class="container max-w-3xl d-flex justify-content-center gap-2">
+           <button id="submit-btn" type="button" onclick="submitAttendance()" class="btn btn-primary px-4 py-2 fw-bold rounded-3">
+                Submit Attendance
+           </button>
+        </div>
+    </footer>
+
+    <script src="index.js"></script>
+</body>
+</html>
